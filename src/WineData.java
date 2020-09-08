@@ -5,7 +5,9 @@ public class WineData {
     String type;
     String title;
     double capacity;
+    String capacityUnits;
     double price;
-    double pricePerCapacityUnit;
+    String currency;
+    double pricePerCapacityUnit; // XXX Is it necessary?
     double rating;
 }
