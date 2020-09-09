@@ -1,6 +1,5 @@
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 
 import org.jsoup.Jsoup;
@@ -27,37 +26,52 @@ public class DiaWineWebScraper {
     }
     
     public void addWinesOfTypeToCatalog (String type) {
-        Document diaWebsite;
-        Elements products;
-        String query = "div.prod_grid";
         
+        Elements products;
+        
+        products = scratcProductsOfType(type);
+
+        for (Element wineProduct:products)
+        {
+            wines.add(convertJsoupElementToWineData(wineProduct));
+            wines.getLast().type = type;
+        }
+    }
+    
+    public Elements scratcProductsOfType (String type) {
+        String query = "div.prod_grid";
+        Document diaWebsite;
+        Elements products = new Elements();
         try {
             diaWebsite = Jsoup.connect(wineUrls.get(type)).get();
             products = diaWebsite.select(query);
-            
-            for (Element wineProduct:products)
-            {
-                wines.add(convertJsoupElementToWineData(wineProduct));
-                wines.getLast().type = type;
-            }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return products;
     }
     
     public WineData convertJsoupElementToWineData (Element wineProduct) {
         WineData wine = new WineData();
         
-        wine.id = retrieveWineId(wineProduct);
-        wine.title = retrieveWineTitle(wineProduct);
-        wine.price = retrieveWinePrice(wineProduct);
-        wine.currency = retrieveWinePriceCurrency(wineProduct);
-        wine.capacity = retrieveWineCapacity(wineProduct);
-        wine.capacityUnits = retrieveWineCapacityUnits(wineProduct);
-        wine.pricePerCapacityUnit = retrieveWinePricePerCapacityUnit(wineProduct); 
-        wine.rating = retrieveWineRating(wineProduct);
+        if (isProduct(wineProduct)) {
+            wine.id = retrieveWineId(wineProduct);
+            wine.title = retrieveWineTitle(wineProduct);
+            wine.price = retrieveWinePrice(wineProduct);
+            wine.currency = retrieveWinePriceCurrency(wineProduct);
+            wine.capacity = retrieveWineCapacity(wineProduct);
+            wine.capacityUnits = retrieveWineCapacityUnits(wineProduct);
+            wine.pricePerCapacityUnit = retrieveWinePricePerCapacityUnit(wineProduct); 
+            wine.rating = retrieveWineRating(wineProduct);
+            retrieveWineUnitsOfPricePerCapacityUnit(wineProduct);
+        }
         
         return wine;
+    }
+    
+    public boolean isProduct (Element wineProduct) {
+        // All products must have a data-productcode.
+        return !wineProduct.attr("data-productcode").isEmpty();
     }
     
     public int retrieveWineId (Element wineProduct) {
@@ -79,10 +93,42 @@ public class DiaWineWebScraper {
         return wineProduct.getElementsByClass("price").text().split(" ")[1];
     } 
     
+    public double retrieveWineCapacity (Element wineProduct) {
+        // In the details can be found the capacity of the product, 
+        // since the two last words are the capacity and its units.
+        double capacity;
+        String description = wineProduct.getElementsByClass("details").text();
+        String[] splitedDescription = description.split(" ");
+        try {
+            capacity = Double.parseDouble(splitedDescription[splitedDescription.length - 2]);
+        } 
+        catch (NumberFormatException e) {
+            capacity = extractCapacityFromPriceAndPricePerCapacityUnit(wineProduct);
+        }
+        return capacity;
+    }
+    
+    public String retrieveWineCapacityUnits (Element wineProduct) {
+        // In the details can be found the capacity of the product, 
+        // since the two last words are the capacity and its units.
+        String description = wineProduct.getElementsByClass("details").text();
+        String[] splitedDescription = description.split(" ");
+        String units = splitedDescription[splitedDescription.length - 1];
+        if (isValidWineUnits(units))
+            return units;
+        else
+            return extractCapacityUnitsFromPriceAndPricePerCapacityUnit(wineProduct);
+    }
+    
     public double retrieveWinePricePerCapacityUnit (Element wineProduct) {
-        // TODO Check Units. 
+        // Although name of the tag is pricePerKilogram, it should be price per unit of volume.
         return Double.parseDouble(wineProduct.getElementsByClass("pricePerKilogram")
                 .text().split(" ")[0].replace(',', '.').replace('(', '\u0000'));
+    }
+    
+    public String retrieveWineUnitsOfPricePerCapacityUnit (Element wineProduct) {
+        return wineProduct.getElementsByClass("pricePerKilogram")
+                .text().split(" ")[1].replaceAll(".\\)", "");
     }
     
     public double retrieveWineRating (Element wineProduct) {
@@ -94,22 +140,36 @@ public class DiaWineWebScraper {
             return Double.parseDouble(rating);
     }
     
-    public double retrieveWineCapacity (Element wineProduct) {
-        // In the details can be found the capacity of the product, 
-        // since the two last words are the capacity and its units.
-        String description = wineProduct.getElementsByClass("details").text();
-        String[] splitedDescription = description.split(" ");
-        // TODO Check that indeed it is obtained the capacity, otherwise compute from its price per litter.
-        return Double.parseDouble(splitedDescription[splitedDescription.length - 2]);
+    public boolean isValidWineUnits (String units) {
+        return units.equals("ml") | units.equals("cl") | units.equals("l") | units.equals("lt");
     }
     
-    public String retrieveWineCapacityUnits (Element wineProduct) {
-        // In the details can be found the capacity of the product, 
-        // since the two last words are the capacity and its units.
-        String description = wineProduct.getElementsByClass("details").text();
-        String[] splitedDescription = description.split(" ");
-        return splitedDescription[splitedDescription.length - 1];
+    public double extractCapacityFromPriceAndPricePerCapacityUnit (Element wineProduct){
+        return retrieveWinePrice(wineProduct) / retrieveWinePricePerCapacityUnit (wineProduct);
     }
     
-
+    public String extractCapacityUnitsFromPriceAndPricePerCapacityUnit (Element wineProduct){
+        String currency = retrieveWinePriceCurrency(wineProduct);
+        String UnitsOfpricePerCapacityUnit = retrieveWineUnitsOfPricePerCapacityUnit(wineProduct);
+        String currencyFromUnitsOfpricePerCapacityUnit = 
+                extractCurrencyFromUnitsOfpricePerCapacityUnit(UnitsOfpricePerCapacityUnit);
+        String capacityUnitsFromUnitsOfpricePerCapacityUnit = 
+                extractCapacityUnitsFromUnitsOfpricePerCapacityUnit (UnitsOfpricePerCapacityUnit);
+        if (currency.equals(currencyFromUnitsOfpricePerCapacityUnit))
+            return capacityUnitsFromUnitsOfpricePerCapacityUnit;
+        else
+            return ""; // TODO Throw an exception?
+    }
+    
+    public String extractCurrencyFromUnitsOfpricePerCapacityUnit (String UnitsOfpricePerCapacityUnit) {
+        return UnitsOfpricePerCapacityUnit.split("/")[0];
+    }
+    
+    public String extractCapacityUnitsFromUnitsOfpricePerCapacityUnit (String UnitsOfpricePerCapacityUnit) {
+        String capacityUnits = UnitsOfpricePerCapacityUnit.split("/")[1];
+        if (isValidWineUnits(capacityUnits))
+            return capacityUnits;
+        else 
+            return "";
+    }
 }
