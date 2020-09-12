@@ -8,6 +8,5 @@ public class WineData {
     String capacityUnits;
     double price;
     String currency;
-    double pricePerCapacityUnit; // XXX Is it necessary?
     double rating;
 }

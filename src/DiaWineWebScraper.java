@@ -9,39 +9,44 @@ import org.jsoup.select.Elements;
 
 public class DiaWineWebScraper {
     
-    private LinkedList<WineData> wines;
-    private HashMap<String, String> wineUrls = new HashMap<String, String>();
+    private LinkedList<WineData> wineCatalogue;
+    private HashMap<String, String> wineUrls;
     
     public DiaWineWebScraper() {
-        wines = new LinkedList<WineData>();
+        wineCatalogue = new LinkedList<WineData>();
+        wineUrls = new HashMap<String, String>();
         wineUrls.put("red", "https://www.dia.es/compra-online/productos/bebidas/vinos-tintos/c/WEB.008.070.00000?show=All");
         wineUrls.put("white", "https://www.dia.es/compra-online/productos/bebidas/vinos-blancos/c/WEB.008.068.00000?show=All");
         wineUrls.put("rosé", "https://www.dia.es/compra-online/productos/bebidas/vinos-rosados/c/WEB.008.069.00000?show=All");
     }
     
-    public void createWineCatalog () {
+    public LinkedList<WineData> getWineCatalogue (){
+        return new LinkedList<WineData>(wineCatalogue);
+    }
+    
+    public void createWineCatalogue () {
         for (String type : wineUrls.keySet()) {
             addWinesOfTypeToCatalog(type);            
         }        
     }
     
-    public void addWinesOfTypeToCatalog (String type) {
-        
-        Elements products;
-        
-        products = scratcProductsOfType(type);
+    public void addWinesOfTypeToCatalog (String type) {     
+        Elements products = scratcProductsOfType(type);
 
         for (Element wineProduct:products)
         {
-            wines.add(convertJsoupElementToWineData(wineProduct));
-            wines.getLast().type = type;
+            if (isProduct(wineProduct)) {
+                wineCatalogue.add(convertJsoupElementToWineData(wineProduct));
+                wineCatalogue.getLast().type = type;
+            }
         }
     }
     
     public Elements scratcProductsOfType (String type) {
-        String query = "div.prod_grid";
+        String query = "div.prod_grid"; // This refers to the HTML blocks with the desired information.
         Document diaWebsite;
         Elements products = new Elements();
+        
         try {
             diaWebsite = Jsoup.connect(wineUrls.get(type)).get();
             products = diaWebsite.select(query);
@@ -54,17 +59,13 @@ public class DiaWineWebScraper {
     public WineData convertJsoupElementToWineData (Element wineProduct) {
         WineData wine = new WineData();
         
-        if (isProduct(wineProduct)) {
-            wine.id = retrieveWineId(wineProduct);
-            wine.title = retrieveWineTitle(wineProduct);
-            wine.price = retrieveWinePrice(wineProduct);
-            wine.currency = retrieveWinePriceCurrency(wineProduct);
-            wine.capacity = retrieveWineCapacity(wineProduct);
-            wine.capacityUnits = retrieveWineCapacityUnits(wineProduct);
-            wine.pricePerCapacityUnit = retrieveWinePricePerCapacityUnit(wineProduct); 
-            wine.rating = retrieveWineRating(wineProduct);
-            retrieveWineUnitsOfPricePerCapacityUnit(wineProduct);
-        }
+        wine.id = retrieveWineId(wineProduct);
+        wine.title = retrieveWineTitle(wineProduct);
+        wine.price = retrieveWinePrice(wineProduct);
+        wine.currency = retrieveWinePriceCurrency(wineProduct);
+        wine.capacity = retrieveWineCapacity(wineProduct);
+        wine.capacityUnits = retrieveWineCapacityUnits(wineProduct);
+        wine.rating = retrieveWineRating(wineProduct);
         
         return wine;
     }
@@ -84,7 +85,7 @@ public class DiaWineWebScraper {
     }
     
     public double retrieveWinePrice (Element wineProduct) {
-     // TODO Throws NumberFormatException
+        // TODO Throws NumberFormatException
         return Double.parseDouble(wineProduct.getElementsByClass("price")
                 .text().split(" ")[0].replace(',', '.'));
     }     
@@ -116,26 +117,15 @@ public class DiaWineWebScraper {
         String units = splitedDescription[splitedDescription.length - 1];
         if (isValidWineUnits(units))
             return units;
-        else
+        else // TODO Ensure that only happens when capacity is obtained from extractCapacityFromPriceAndPricePerCapacityUnit
             return extractCapacityUnitsFromPriceAndPricePerCapacityUnit(wineProduct);
-    }
-    
-    public double retrieveWinePricePerCapacityUnit (Element wineProduct) {
-        // Although name of the tag is pricePerKilogram, it should be price per unit of volume.
-        return Double.parseDouble(wineProduct.getElementsByClass("pricePerKilogram")
-                .text().split(" ")[0].replace(',', '.').replace('(', '\u0000'));
-    }
-    
-    public String retrieveWineUnitsOfPricePerCapacityUnit (Element wineProduct) {
-        return wineProduct.getElementsByClass("pricePerKilogram")
-                .text().split(" ")[1].replaceAll(".\\)", "");
     }
     
     public double retrieveWineRating (Element wineProduct) {
         String rating = wineProduct.getElementsByClass("rateyo-readonly").attr("data-rating");
-        // TODO Is it the best way to proceed if there is no rating?
+        
         if (rating.isEmpty())
-            return Double.NaN;
+            return Double.NaN; // TODO Is it the best way to proceed if there is no rating?
         else
             return Double.parseDouble(rating);
     }
@@ -155,10 +145,22 @@ public class DiaWineWebScraper {
                 extractCurrencyFromUnitsOfpricePerCapacityUnit(UnitsOfpricePerCapacityUnit);
         String capacityUnitsFromUnitsOfpricePerCapacityUnit = 
                 extractCapacityUnitsFromUnitsOfpricePerCapacityUnit (UnitsOfpricePerCapacityUnit);
+        
         if (currency.equals(currencyFromUnitsOfpricePerCapacityUnit))
             return capacityUnitsFromUnitsOfpricePerCapacityUnit;
         else
             return ""; // TODO Throw an exception?
+    }
+    
+    public double retrieveWinePricePerCapacityUnit (Element wineProduct) {
+        // Although name of the tag is pricePerKilogram, it should be price per unit of volume.
+        return Double.parseDouble(wineProduct.getElementsByClass("pricePerKilogram")
+                .text().split(" ")[0].replace(',', '.').replace('(', '\u0000'));
+    }
+    
+    public String retrieveWineUnitsOfPricePerCapacityUnit (Element wineProduct) {
+        return wineProduct.getElementsByClass("pricePerKilogram")
+                .text().split(" ")[1].replaceAll(".\\)", "");
     }
     
     public String extractCurrencyFromUnitsOfpricePerCapacityUnit (String UnitsOfpricePerCapacityUnit) {

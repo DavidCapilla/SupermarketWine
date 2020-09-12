@@ -1,6 +1,6 @@
 # Supermarket Wine
 
-We will extract information about wines from the website of a supermarket (www.dia.es) and explore a little bit the obtained database.
+We will extract information about wines from the website of a supermarket (www.dia.es) and explore a little bit the obtained data.
 
 Extracts wine information from the  website of a supermarket (www.dia.es) such as 
 - The given identifier,
@@ -13,4 +13,6 @@ Although it is possible to obtain the price per volume it is only used when capa
 
 It is used the library jsoup to connect to the webpage and parse it HTML via the created DiaWineWebScrap class. From this parsing, the information is retrieved and stored in WineData.
 
-There have been done some assumptions of the correctness of the extracted data. When we explore the data we will see if there are some things to fix.
+There have been done some assumptions of the correctness of the extracted data.
+
+The data is exported to a csv file called DiaWines.csv located at the project folder.

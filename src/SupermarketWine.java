@@ -2,14 +2,11 @@
 public class SupermarketWine {
     
     public static void main(String args[]){
-        print("running...");
+        System.out.println("running...");
         DiaWineWebScraper theDiaWineWebScraper = new DiaWineWebScraper();
-        theDiaWineWebScraper.createWineCatalog();
-        print("done");
+        theDiaWineWebScraper.createWineCatalogue();
+        WinesCsvWriter theWinesCsvWriter = new WinesCsvWriter();
+        theWinesCsvWriter.writeWinesToCsv("DiaWines.csv", theDiaWineWebScraper.getWineCatalogue());
+        System.out.println("done");
     }
-    
-    public static void print(String string) {
-        System.out.println(string);
-    }
-
 }
